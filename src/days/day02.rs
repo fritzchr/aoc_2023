@@ -196,6 +196,7 @@ pub fn day02() {
 
     println!("Day 02 - Assignment 01 solution: {result_01}");
     println!("Day 02 - Assignment 02 solution: {result_02}");
+    println!("\n");
 }
 
 #[cfg(test)]
