@@ -1,11 +1,16 @@
+use std::collections::HashMap;
+
+#[derive(Eq, PartialEq, Hash, Clone)]
 struct Card {
+    id: usize,
     winning_numbers: Vec<u32>,
     drawn_numbers: Vec<u32>,
 }
 
 impl Card {
-    fn new(winning_numbers: Vec<u32>, drawn_numbers: Vec<u32>) -> Card {
+    fn new(id: usize, winning_numbers: Vec<u32>, drawn_numbers: Vec<u32>) -> Card {
         Card {
+            id,
             winning_numbers,
             drawn_numbers,
         }
@@ -27,10 +32,22 @@ impl Card {
         }
         score
     }
+
+    fn get_amount_of_winning_numbers(&self) -> usize {
+        let mut amount = 0;
+
+        for number in &self.winning_numbers {
+            if self.drawn_numbers.contains(&number) {
+                amount += 1;
+            }
+        }
+        amount
+    }
 }
 
 fn parse_input(text: &str) -> Vec<Card> {
     let mut cards: Vec<Card> = Vec::new();
+    let mut card_id: usize = 0;
 
     for line in text.lines() {
         let start_pos = line.find(':').expect("Invalid input");
@@ -49,10 +66,32 @@ fn parse_input(text: &str) -> Vec<Card> {
             .map(|s| s.parse::<u32>().expect("Failed to parse number"))
             .collect();
 
-        cards.push(Card::new(winning_numbers, drawn_numbers));
+        cards.push(Card::new(card_id, winning_numbers, drawn_numbers));
+        card_id += 1;
     }
 
     cards
+}
+
+fn calculate_total_cards(cards: Vec<Card>) -> HashMap<usize, usize> {
+    let mut initial_cards: HashMap<usize, usize> =
+        cards.clone().into_iter().map(|obj| (obj.id, 1)).collect();
+
+    for card in &cards {
+        let winning_amount = card.get_amount_of_winning_numbers();
+        if winning_amount > 0 {
+            if let Some(current_card_amount) = initial_cards.get(&card.id) {
+                for _ in 0..current_card_amount.to_owned() {
+                    for i in card.id + 1..card.id + 1 + winning_amount {
+                        if let Some(entry) = initial_cards.get_mut(&i) {
+                            *entry += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    initial_cards
 }
 
 fn assignment01(input: &str) -> u32 {
@@ -66,7 +105,14 @@ fn assignment01(input: &str) -> u32 {
 }
 
 fn assignment02(input: &str) -> u32 {
-    0
+    let cards = parse_input(input);
+
+    let result = calculate_total_cards(cards);
+    let mut sum = 0;
+    for (_, amount) in result {
+        sum += amount;
+    }
+    sum as u32
 }
 
 pub fn day04() {
@@ -97,8 +143,8 @@ Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
         assert_eq!(assignment01(&EXAMPLE_DATA.to_owned()), 13);
     }
 
-    // #[test]
-    // fn assignment02_test() {
-    //     assert_eq!(assignment02(&EXAMPLE_DATA.to_owned()), 30);
-    // }
+    #[test]
+    fn assignment02_test() {
+        assert_eq!(assignment02(&EXAMPLE_DATA.to_owned()), 30);
+    }
 }
