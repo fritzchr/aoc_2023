@@ -10,7 +10,7 @@ fn extract_sequences(input: &str) -> Vec<Vec<i64>> {
     sequences
 }
 
-fn calculate_next_sequence(sequence: Vec<i64>) -> Option<Vec<i64>> {
+fn calculate_sequence(sequence: Vec<i64>, subtraction: fn(i64, i64) -> i64) -> Option<Vec<i64>> {
     let mut new_sequence: Vec<i64> = vec![];
 
     let mut finished = true;
@@ -31,7 +31,7 @@ fn calculate_next_sequence(sequence: Vec<i64>) -> Option<Vec<i64>> {
         }
 
         let next = i + 1;
-        new_sequence.push(sequence[next] - sequence[i]);
+        new_sequence.push(subtraction(sequence[i], sequence[next]));
     }
     Some(new_sequence)
 }
@@ -46,7 +46,7 @@ fn assignment01(input: &str) -> i64 {
 
         while let Some(next_sequence) = current_sequence {
             sequence_history.push(next_sequence.clone());
-            if let Some(new_sequence) = calculate_next_sequence(next_sequence) {
+            if let Some(new_sequence) = calculate_sequence(next_sequence, |a, b| b - a) {
                 current_sequence = Some(new_sequence);
             } else {
                 current_sequence = None;
@@ -60,8 +60,28 @@ fn assignment01(input: &str) -> i64 {
     sum
 }
 
-fn assignment02(input: &str) -> u32 {
-    0
+fn assignment02(input: &str) -> i64 {
+    let sequences = extract_sequences(input);
+    let mut sum = 0;
+
+    for sequence in sequences {
+        let mut current_sequence = Some(sequence);
+        let mut sequence_history: Vec<Vec<i64>> = vec![];
+
+        while let Some(next_sequence) = current_sequence {
+            sequence_history.push(next_sequence.clone());
+            if let Some(new_sequence) = calculate_sequence(next_sequence, |a, b| a - b) {
+                current_sequence = Some(new_sequence);
+            } else {
+                current_sequence = None;
+            }
+        }
+
+        for history in sequence_history.iter().rev() {
+            sum += history.first().unwrap();
+        }
+    }
+    sum
 }
 
 pub fn day09() {
@@ -88,8 +108,8 @@ mod tests {
         assert_eq!(assignment01(&EXAMPLE_DATA.to_owned()), 114);
     }
 
-    // #[test]
-    // fn assignment02_test() {
-    //     assert_eq!(assignment02(&EXAMPLE_DATA.to_owned()), 71503);
-    // }
+    #[test]
+    fn assignment02_test() {
+        assert_eq!(assignment02(&EXAMPLE_DATA.to_owned()), 2);
+    }
 }
