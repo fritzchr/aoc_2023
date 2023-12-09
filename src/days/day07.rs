@@ -66,26 +66,20 @@ impl Hand {
         Hand { cards, bid, r#type }
     }
 
-    fn determine_type(cards: &Vec<char>) -> HandType {
-        let mut card_type_count: HashMap<char, usize> = HashMap::new();
-
-        for c in cards {
-            let count = card_type_count.entry(*c).or_insert(0);
-            *count += 1;
-        }
-
-        match card_type_count.len() {
+    #[inline]
+    fn calculate_type(card_types: HashMap<char, usize>) -> HandType {
+        match card_types.len() {
             5 => HandType::HighCard,
             4 => HandType::OnePair,
             3 => {
-                if card_type_count.values().any(|&count| count == 3) {
+                if card_types.values().any(|&count| count == 3) {
                     HandType::ThreeOfAKind
                 } else {
                     HandType::TwoPair
                 }
             }
             2 => {
-                if card_type_count.values().any(|&count| count == 4) {
+                if card_types.values().any(|&count| count == 4) {
                     HandType::FourOfAKind
                 } else {
                     HandType::FullHouse
@@ -96,50 +90,42 @@ impl Hand {
         }
     }
 
-    fn determine_type_with_joker(cards: &Vec<char>) -> HandType {
-        let mut card_type_count: HashMap<char, usize> = HashMap::new();
-        let mut best_hand_type = HandType::HighCard;
+    fn determine_type(cards: &Vec<char>) -> HandType {
+        let mut card_types: HashMap<char, usize> = HashMap::new();
 
         for c in cards {
-            let count = card_type_count.entry(*c).or_insert(0);
+            let count = card_types.entry(*c).or_insert(0);
             *count += 1;
         }
 
-        if card_type_count.contains_key(&'J') {
-            if *card_type_count.get(&'J').unwrap_or(&0) == 5 {
+        Self::calculate_type(card_types)
+    }
+
+    fn determine_type_with_joker(cards: &Vec<char>) -> HandType {
+        let mut card_types: HashMap<char, usize> = HashMap::new();
+        let mut best_hand_type = HandType::HighCard;
+
+        for c in cards {
+            let count = card_types.entry(*c).or_insert(0);
+            *count += 1;
+        }
+
+        if card_types.contains_key(&'J') {
+            if *card_types.get(&'J').unwrap_or(&0) == 5 {
+                // There might be a hand full of jokers
                 return HandType::FiveOfAKind;
             }
 
-            for (c, d) in &card_type_count {
+            for (c, d) in &card_types {
                 if *c != 'J' {
-                    let mut cards: HashMap<char, usize> = card_type_count.clone();
-                    let cnt_joker = cards.remove(&'J').unwrap_or(0);
+                    let mut cards: HashMap<char, usize> = card_types.clone();
+                    let joker_cnt = cards.remove(&'J').unwrap_or(0);
 
                     if let Some(card) = cards.get_mut(c) {
-                        *card = d + cnt_joker;
+                        *card = d + joker_cnt;
                     }
 
-                    let current_hand_type = match cards.len() {
-                        5 => HandType::HighCard,
-                        4 => HandType::OnePair,
-                        3 => {
-                            if cards.values().any(|&count| count == 3) {
-                                HandType::ThreeOfAKind
-                            } else {
-                                HandType::TwoPair
-                            }
-                        }
-                        2 => {
-                            if cards.values().any(|&count| count == 4) {
-                                HandType::FourOfAKind
-                            } else {
-                                HandType::FullHouse
-                            }
-                        }
-                        1 => HandType::FiveOfAKind,
-                        _ => unreachable!(),
-                    };
-
+                    let current_hand_type = Self::calculate_type(cards);
                     if current_hand_type.cmp(&best_hand_type) == Ordering::Greater {
                         best_hand_type = current_hand_type;
                     }
