@@ -61,6 +61,11 @@ impl Hand {
         Hand { cards, bid, r#type }
     }
 
+    fn new_with_joker(cards: Vec<char>, bid: usize) -> Self {
+        let r#type = Self::determine_type_with_joker(&cards);
+        Hand { cards, bid, r#type }
+    }
+
     fn determine_type(cards: &Vec<char>) -> HandType {
         let mut card_type_count: HashMap<char, usize> = HashMap::new();
 
@@ -68,9 +73,6 @@ impl Hand {
             let count = card_type_count.entry(*c).or_insert(0);
             *count += 1;
         }
-
-        let mut unique_types: Vec<_> = card_type_count.keys().collect();
-        unique_types.sort_by(|a, b| card_type_count[b].cmp(&card_type_count[a]));
 
         match card_type_count.len() {
             5 => HandType::HighCard,
@@ -93,24 +95,71 @@ impl Hand {
             _ => unreachable!(),
         }
     }
-}
 
-impl PartialEq for Hand {
-    fn eq(&self, other: &Self) -> bool {
-        self.cards == other.cards
+    fn determine_type_with_joker(cards: &Vec<char>) -> HandType {
+        let mut card_type_count: HashMap<char, usize> = HashMap::new();
+        let mut best_hand_type = HandType::HighCard;
+
+        for c in cards {
+            let count = card_type_count.entry(*c).or_insert(0);
+            *count += 1;
+        }
+
+        if card_type_count.contains_key(&'J') {
+            if *card_type_count.get(&'J').unwrap_or(&0) == 5 {
+                return HandType::FiveOfAKind;
+            }
+
+            for (c, d) in &card_type_count {
+                if *c != 'J' {
+                    let mut cards: HashMap<char, usize> = card_type_count.clone();
+                    let cnt_joker = cards.remove(&'J').unwrap_or(0);
+
+                    if let Some(card) = cards.get_mut(c) {
+                        *card = d + cnt_joker;
+                    }
+
+                    let current_hand_type = match cards.len() {
+                        5 => HandType::HighCard,
+                        4 => HandType::OnePair,
+                        3 => {
+                            if cards.values().any(|&count| count == 3) {
+                                HandType::ThreeOfAKind
+                            } else {
+                                HandType::TwoPair
+                            }
+                        }
+                        2 => {
+                            if cards.values().any(|&count| count == 4) {
+                                HandType::FourOfAKind
+                            } else {
+                                HandType::FullHouse
+                            }
+                        }
+                        1 => HandType::FiveOfAKind,
+                        _ => unreachable!(),
+                    };
+
+                    if current_hand_type.cmp(&best_hand_type) == Ordering::Greater {
+                        best_hand_type = current_hand_type;
+                    }
+                }
+            }
+        } else {
+            best_hand_type = Self::determine_type(cards);
+        }
+        best_hand_type
     }
-}
 
-impl Ord for Hand {
-    fn cmp(&self, other: &Self) -> Ordering {
-        const ORDERING: &str = "AKQJT98765432";
-
+    /// I'm using a custom comparison function instead of implementing Ord.
+    /// Mainly to pass in a custom set of ordering rules depending on the assignment.
+    fn cmp(&self, other: &Self, ordering: &str) -> Ordering {
         match self.r#type.cmp(&other.r#type) {
             Ordering::Equal => {
                 // If the hand has the same type, the hand
                 // with the stronger starting card is superior.
                 for (a, b) in self.cards.iter().zip(other.cards.iter()) {
-                    match ORDERING.find(*b).cmp(&ORDERING.find(*a)) {
+                    match ordering.find(*b).cmp(&ordering.find(*a)) {
                         Ordering::Equal => continue,
                         other => return other,
                     }
@@ -123,7 +172,13 @@ impl Ord for Hand {
     }
 }
 
-fn extract_input(input: &str) -> Vec<Hand> {
+impl PartialEq for Hand {
+    fn eq(&self, other: &Self) -> bool {
+        self.cards == other.cards
+    }
+}
+
+fn extract_input_01(input: &str) -> Vec<Hand> {
     let mut hands: Vec<Hand> = vec![];
 
     for line in input.lines() {
@@ -142,9 +197,30 @@ fn extract_input(input: &str) -> Vec<Hand> {
     hands
 }
 
+fn extract_input_02(input: &str) -> Vec<Hand> {
+    let mut hands: Vec<Hand> = vec![];
+
+    for line in input.lines() {
+        let mut entry = line.split_whitespace();
+
+        let cards: Vec<char> = entry.next().unwrap().chars().collect();
+        let bid = entry
+            .next()
+            .unwrap()
+            .parse::<usize>()
+            .expect("Failed to parse value");
+
+        hands.push(Hand::new_with_joker(cards, bid));
+    }
+
+    hands
+}
+
 fn assignment01(input: &str) -> usize {
-    let mut hands = extract_input(input);
-    hands.sort_by(|a, b| a.cmp(&b));
+    const ORDERING: &str = "AKQJT98765432";
+    let mut hands = extract_input_01(input);
+
+    hands.sort_by(|a, b| a.cmp(&b, ORDERING));
 
     let mut score = 1;
     let mut total_winnings = 0;
@@ -156,8 +232,20 @@ fn assignment01(input: &str) -> usize {
     total_winnings
 }
 
-fn assignment02(input: &str) -> u32 {
-    0
+fn assignment02(input: &str) -> usize {
+    const ORDERING: &str = "AKQT98765432J";
+    let mut hands = extract_input_02(input);
+
+    hands.sort_by(|a, b| a.cmp(&b, ORDERING));
+
+    let mut score = 1;
+    let mut total_winnings = 0;
+
+    for hand in hands {
+        total_winnings = total_winnings + (hand.bid * score);
+        score += 1;
+    }
+    total_winnings
 }
 
 pub fn day07() {
@@ -187,8 +275,8 @@ QQQJA 483
         assert_eq!(assignment01(&EXAMPLE_DATA.to_owned()), 6440);
     }
 
-    // #[test]
-    // fn assignment02_test() {
-    //     assert_eq!(assignment02(&EXAMPLE_DATA.to_owned()), 71503);
-    // }
+    #[test]
+    fn assignment02_test() {
+        assert_eq!(assignment02(&EXAMPLE_DATA.to_owned()), 5905);
+    }
 }
